@@ -9,15 +9,22 @@ class Realtime_FFN(nn.Module):
     def __init__(self, width, depth, device):
         super(Realtime_FFN, self).__init__()
 
-        self.time_mod = 3 * depth + 2
+        self.time_mod = 2 * depth + 5
         self.weights = nn.Parameter(torch.ones(width, width, depth))
-        torch.nn.init.uniform_(self.weights, -1 * np.sqrt(1 / (width)), np.sqrt(1 / width))
+        torch.nn.init.uniform_(self.weights, -1 * np.sqrt(1 / (width*1000000)), np.sqrt(1 / (width*1000000)))
+        torch.nn.init.normal_(self.weights, 0, 0.1)
+        self.weights.data = self.weights * np.sqrt(2/width)
+        # torch.nn.init.uniform_(self.weights, -1 * np.sqrt(1 / (width )), np.sqrt(1 / (width )))
+        print(-1 * np.sqrt(1 / (width*10000000000)), np.sqrt(1 / (width*10000000000)))
+        # torch.nn.init.uniform_(self.weights, -0.0001, 0.0001)
+        # torch.nn.init.kaiming_normal_(self.weights, nonlinearity="relu")
+        # torch.nn.init.kaiming_normal_()
         # torch.nn.init.uniform_(self.weights, 0.01, 1)
         self.state = torch.zeros(width, depth + 1).to(device)
         self.output_weights = nn.Parameter(torch.ones(width, (depth + 1)))
-        torch.nn.init.uniform_(self.output_weights, -1 * np.sqrt(1 / (width + depth + 1)),
-                               np.sqrt(1 / (width + depth + 1)))
-        torch.nn.init.zeros_(self.output_weights)
+        torch.nn.init.uniform_(self.output_weights, -1 * np.sqrt(1 / (width * (depth + 1))),
+                               np.sqrt(1 / (width * (depth + 1))))
+        # torch.nn.init.zeros_(self.output_weights)
         self.gradients = torch.zeros(width, width, depth).to(device)
         self.stored_activations = torch.zeros(width, depth + 1, self.time_mod).to(device)
         self.stored_gradiets = torch.zeros(width, depth).to(device)
@@ -28,7 +35,7 @@ class Realtime_FFN(nn.Module):
 
     def forward(self, x):
 
-        self.state = torch.relu(torch.sum(self.weights * self.state[:, 0:self.depth].unsqueeze(1), 0))
+        self.state = torch.clamp(torch.relu(torch.sum(self.weights * self.state[:, 0:self.depth].unsqueeze(1), 0)), -10, 10)
         self.state = torch.cat((x.view(-1, 1), self.state), dim=1)
         output = torch.sum(self.output_weights * self.state)
 
@@ -37,6 +44,7 @@ class Realtime_FFN(nn.Module):
     def accumulate_gradient(self, prediction, target):
         # Real-time backward pass
 
+        # prediction = torch.sigmoid(prediction)
         error = (target - prediction)*-1
 
         with torch.no_grad():
@@ -77,6 +85,10 @@ class Realtime_FFN(nn.Module):
                     1) * (self.stored_gradiets[:, normal_list] * (relu_grad).unsqueeze(0))
 
             self.time = (self.time + 1) % self.time_mod
+
+    def zero_grad(self):
+        self.weights.grad = None
+        self.output_weights_gradient.grad = None
 
     def accumulate_gradient_loopy(self, prediction, target):
         # Real-time backward pass
@@ -150,7 +162,7 @@ if __name__ == "__main__":
     avg_val = None
     from timeit import default_timer as timer
 
-    opti = Adam(n.parameters(), 1e-4, (0.9, 0.999))
+    opti = Adam(n.parameters(), 1e-5, (0.5, 0.999), weight_decay=1e-5)
 
     start = timer()
 
@@ -171,6 +183,7 @@ if __name__ == "__main__":
             else:
                 avg_val = avg_val * 0.99 + 0.01 * ((10 - y) ** 2).item()
             if a % 100 == 99:
+                print("Max state value", torch.max(n.state))
                 print(1000*((timer() - start)/a), "ms")
                 # print(a, time() - start)
                 print(avg_val)
