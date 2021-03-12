@@ -21,7 +21,8 @@ class Realtime_FFN(nn.Module):
         # torch.nn.init.kaiming_normal_()
         # torch.nn.init.uniform_(self.weights, 0.01, 1)
         self.state = torch.zeros(width, depth + 1).to(device)
-        self.output_weights = nn.Parameter(torch.ones(width, (depth + 1)))
+        self.output_weights = nn.Parameter(torch.ones(width, (
+            + 1)))
         torch.nn.init.uniform_(self.output_weights, -1 * np.sqrt(1 / (width * (depth + 1))),
                                np.sqrt(1 / (width * (depth + 1))))
         # torch.nn.init.zeros_(self.output_weights)
