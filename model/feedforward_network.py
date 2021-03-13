@@ -11,21 +11,13 @@ class Realtime_FFN(nn.Module):
 
         self.time_mod = 2 * depth + 5
         self.weights = nn.Parameter(torch.ones(width, width, depth))
-        torch.nn.init.uniform_(self.weights, -1 * np.sqrt(1 / (width*1000000)), np.sqrt(1 / (width*1000000)))
         torch.nn.init.normal_(self.weights, 0, 0.1)
         self.weights.data = self.weights * np.sqrt(2/width)
-        # torch.nn.init.uniform_(self.weights, -1 * np.sqrt(1 / (width )), np.sqrt(1 / (width )))
-        print(-1 * np.sqrt(1 / (width*10000000000)), np.sqrt(1 / (width*10000000000)))
-        # torch.nn.init.uniform_(self.weights, -0.0001, 0.0001)
-        # torch.nn.init.kaiming_normal_(self.weights, nonlinearity="relu")
-        # torch.nn.init.kaiming_normal_()
-        # torch.nn.init.uniform_(self.weights, 0.01, 1)
         self.state = torch.zeros(width, depth + 1).to(device)
         self.output_weights = nn.Parameter(torch.ones(width, (
             + 1)))
         torch.nn.init.uniform_(self.output_weights, -1 * np.sqrt(1 / (width * (depth + 1))),
                                np.sqrt(1 / (width * (depth + 1))))
-        # torch.nn.init.zeros_(self.output_weights)
         self.gradients = torch.zeros(width, width, depth).to(device)
         self.stored_activations = torch.zeros(width, depth + 1, self.time_mod).to(device)
         self.stored_gradiets = torch.zeros(width, depth).to(device)
@@ -99,11 +91,6 @@ class Realtime_FFN(nn.Module):
         with torch.no_grad():
             self.stored_activations[:, :, self.time] = self.state
             self.output_gradient[:, :, self.time] = self.output_weights*error
-            time_indices = np.array([(self.time - self.depth * 2 + (a + 1) * 2) % self.time_mod for a in list(range(0, self.depth-1))])
-            # self.stored_gradiets[:, self.depth - 1] = self.output_gradient[:, self.depth, self.time]
-            # print(time_indices)
-
-
 
             for a in range(0, self.depth):
                 time_index = (self.time - self.depth * 2 + (a + 1) * 2) % self.time_mod
@@ -121,7 +108,6 @@ class Realtime_FFN(nn.Module):
 
             self.output_weights_gradient += self.state.clone()*error
 
-            time_indices = np.array([(self.time - self.depth * 2 + (a + 1) * 2) % self.time_mod for a in list(range(0, self.depth))])
             for a in range(0, self.depth):
                 time_index = (self.time - self.depth * 2 + (a + 1) * 2) % self.time_mod
                 relu_grad = ((self.stored_activations[:, a + 1, (time_index) % self.time_mod] > 0).float())
@@ -129,13 +115,6 @@ class Realtime_FFN(nn.Module):
                     1) * (self.stored_gradiets[:, a] * (relu_grad).unsqueeze(0))
 
             self.time = (self.time + 1) % self.time_mod
-
-
-    #
-    # def step(self, lr):
-    #
-    #     self.weights.data = self.weights - lr * self.gradients
-    #     self.output_weights.data = self.output_weights - lr  * self.output_weights_gradient
 
 
 def set_seed(seed):
